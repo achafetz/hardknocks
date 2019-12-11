@@ -19,7 +19,7 @@ Download the masked MSD dataset. You'll need to
 
 ```{r}
 library(readr)
-library(magrittir)
+library(magrittr)
 
 #specify the folder in which you want to save the masked MSD file
 folderpath_output <- ""
