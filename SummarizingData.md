@@ -1,38 +1,14 @@
 Summarizing Data in R
 ================
 Aaron Chafetz
-2019-12-12 \[updated: 2019-12-12\]
+2019-12-11 \[updated: 2019-12-12\]
 
 Start by loading the packages we need.
 
-    ## Warning: package 'tidyverse' was built under R version 3.5.3
-
-    ## -- Attaching packages ------------------------------ tidyverse 1.2.1 --
-
-    ## v ggplot2 3.2.0     v purrr   0.3.2
-    ## v tibble  2.1.3     v dplyr   0.8.3
-    ## v tidyr   0.8.3     v stringr 1.4.0
-    ## v readr   1.3.1     v forcats 0.4.0
-
-    ## Warning: package 'ggplot2' was built under R version 3.5.3
-
-    ## Warning: package 'tibble' was built under R version 3.5.3
-
-    ## Warning: package 'tidyr' was built under R version 3.5.3
-
-    ## Warning: package 'readr' was built under R version 3.5.3
-
-    ## Warning: package 'purrr' was built under R version 3.5.3
-
-    ## Warning: package 'dplyr' was built under R version 3.5.3
-
-    ## Warning: package 'stringr' was built under R version 3.5.3
-
-    ## Warning: package 'forcats' was built under R version 3.5.3
-
-    ## -- Conflicts --------------------------------- tidyverse_conflicts() --
-    ## x dplyr::filter() masks stats::filter()
-    ## x dplyr::lag()    masks stats::lag()
+``` r
+library(tidyverse)
+library(ICPIutilities)
+```
 
 Access the data
 
