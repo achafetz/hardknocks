@@ -1,11 +1,9 @@
 Summarizing Data in R
 ================
 Aaron Chafetz
-2019-12-12
+2019-12-12 \[updated: 2019-12-12\]
 
-``` r
-library(tidyverse)
-```
+Start by loading the packages we need.
 
     ## Warning: package 'tidyverse' was built under R version 3.5.3
 
@@ -36,9 +34,7 @@ library(tidyverse)
     ## x dplyr::filter() masks stats::filter()
     ## x dplyr::lag()    masks stats::lag()
 
-``` r
-library(ICPIutilities)
-```
+Access the data
 
 ``` r
 #run the below lines of code to save the masked MSD
@@ -48,10 +44,7 @@ filename <- basename(dataset_url)
 df <- read_msd(dataset_url, save_rds = FALSE)
 ```
 
-    ## Warning in file.remove(file): cannot remove file 'https://
-    ## media.githubusercontent.com/media/ICPI/TrainingDataset/master/Output/
-    ## MER_Structured_TRAINING_Datasets_PSNU_IM_FY17-20_20191115_v1_1.txt', reason
-    ## 'Invalid argument'
+To look at the data, we can use `View(df)` but `glimpse()` provides a better over view of the dataset.
 
 ``` r
 glimpse(df)
@@ -105,9 +98,13 @@ glimpse(df)
     ## $ qtr4                     <dbl> 290, 1760, 90, NA, 3510, NA, 190, 520...
     ## $ cumulative               <dbl> 460, 1760, 90, NA, 3510, NA, 190, 520...
 
-``` r
-View(df)
-```
+We're interested in looking at Jupiter's TX\_NEW in 2019.
+
+In Excel, if we filtered the data table (named df), we would get 18 rows that look like this
+
+![image](https://user-images.githubusercontent.com/8933069/70719468-0ddb5d00-1cc0-11ea-86cf-d1e73b230be8.png).
+
+We can do the same thing in R.
 
 ``` r
 df %>% 
@@ -152,23 +149,96 @@ df %>%
     ## #   fiscal_year <int>, targets <dbl>, qtr1 <dbl>, qtr2 <dbl>, qtr3 <dbl>,
     ## #   qtr4 <dbl>, cumulative <dbl>
 
+Filtering gets us part of the way there but we need to summarize or aggregate the filtered rows to get a total.
+
+In Excel, we could write a formula like this:
+
+`=SUMIFS(df[cumulative],df[fiscal_year],2019,df[operatingunit],"Jupiter",df[indicator],"TX_NEW",df[standardizeddisaggregate],"Total Numerator")`
+
+We are telling excel to sum the cumulative column based after it has filtered on year, indicator, etc.
+
+This is extremely similar in R. We can use `count()` with the `wt` argument, specifying that we don't just want a count of rows, but instead want to sum up the `cumulative` column.
+
 ``` r
 df %>% 
   filter(fiscal_year == 2019,
          operatingunit == "Jupiter",
          indicator == "TX_NEW",
-         #standardizeddisaggregate == "Total Numerator"
-         ) %>% 
-  count(standardizeddisaggregate, trendscoarse, wt = cumulative)
+         standardizeddisaggregate == "Total Numerator") %>% 
+  count(wt = cumulative)
 ```
 
-    ## # A tibble: 4 x 3
-    ##   standardizeddisaggregate          trendscoarse     n
-    ##   <chr>                             <chr>        <dbl>
-    ## 1 Age/Sex/HIVStatus                 <15            960
-    ## 2 Age/Sex/HIVStatus                 15+          19940
-    ## 3 PregnantOrBreastfeeding/HIVStatus <NA>           120
-    ## 4 Total Numerator                   <NA>         19910
+    ## # A tibble: 1 x 1
+    ##       n
+    ##   <dbl>
+    ## 1 19910
+
+If we were interested in comparing operating units, we could take `operatingunit` of the filter and include it in `count()` as a sort of grouping variable.
+
+``` r
+df %>% 
+  filter(fiscal_year == 2019,
+         indicator == "TX_NEW",
+         standardizeddisaggregate == "Total Numerator") %>% 
+  count(operatingunit, wt = cumulative)
+```
+
+    ## # A tibble: 3 x 2
+    ##   operatingunit     n
+    ##   <chr>         <dbl>
+    ## 1 Jupiter       19910
+    ## 2 Neptune       41220
+    ## 3 Saturn        24900
+
+Starting to think about grouping variable is similar to pivot tables in Excel. The filters are the same as above and then `operatingunit`, our grouping variable is under "Row Labels".
+
+![image](https://user-images.githubusercontent.com/8933069/70720555-0026d700-1cc2-11ea-935b-7ca5a71c49d7.png)
+
+You can group by multiple variables with `count()`. We can add, as an example, in `psnu` as well.
+
+``` r
+df %>% 
+  filter(fiscal_year == 2019,
+         indicator == "TX_NEW",
+         standardizeddisaggregate == "Total Numerator") %>% 
+  count(operatingunit, psnu, wt = cumulative)
+```
+
+    ## # A tibble: 9 x 3
+    ##   operatingunit psnu         n
+    ##   <chr>         <chr>    <dbl>
+    ## 1 Jupiter       Callisto  4730
+    ## 2 Jupiter       Europa    7310
+    ## 3 Jupiter       Ganymede  5360
+    ## 4 Jupiter       Himalia   2510
+    ## 5 Neptune       Naiad     7210
+    ## 6 Neptune       Nereid   34010
+    ## 7 Saturn        Dione     6740
+    ## 8 Saturn        Mimas    11840
+    ## 9 Saturn        Thea      6320
+
+I find this a good way to look at what disaggregates exist for a variable and do a quick completeness check.
+
+``` r
+df %>% 
+  filter(fiscal_year == 2019,
+         operatingunit == "Jupiter",
+         indicator == "TX_NEW") %>% 
+  count(standardizeddisaggregate, sex, trendscoarse, wt = cumulative)
+```
+
+    ## # A tibble: 7 x 4
+    ##   standardizeddisaggregate          sex         trendscoarse     n
+    ##   <chr>                             <chr>       <chr>        <dbl>
+    ## 1 Age/Sex/HIVStatus                 Female      <15            490
+    ## 2 Age/Sex/HIVStatus                 Female      15+          13050
+    ## 3 Age/Sex/HIVStatus                 Male        <15            470
+    ## 4 Age/Sex/HIVStatus                 Male        15+           6890
+    ## 5 Age/Sex/HIVStatus                 Unknown Sex <15              0
+    ## 6 PregnantOrBreastfeeding/HIVStatus <NA>        <NA>           120
+    ## 7 Total Numerator                   <NA>        <NA>         19910
+
+Alternatively, instead of using `count()` we can use the more robust function, `summarize()` which will allow us to aggregate or weight multiple variables at a time or to create other statistics beyond sum, eg calculating a mean or standard deviation.
 
 ``` r
 df %>% 
@@ -185,70 +255,39 @@ df %>%
     ##        <dbl>
     ## 1      19910
 
+To add our grouping variable in, we have to add an additional line to identify them and then one more after our summarize function to remove the grouping (so we don't perform any more actions on the dataset when its grouped). I've also added in an extra line at the bottom to sort partners in each operating unit from high to low cumulative value using `arrange()`.
+
 ``` r
 df %>% 
   filter(fiscal_year == 2019,
          indicator == "TX_NEW",
          standardizeddisaggregate == "Total Numerator"
          ) %>% 
-  group_by(operatingunit, psnu, primepartner) %>% 
+  group_by(operatingunit, primepartner) %>% 
   summarise(cumulative = sum(cumulative, na.rm = TRUE)) %>% 
   ungroup() %>% 
-  arrange(operatingunit, psnu, desc(cumulative)) %>% 
-  print(n = Inf)
+  arrange(operatingunit, primepartner, desc(cumulative))
 ```
 
-    ## # A tibble: 42 x 4
-    ##    operatingunit psnu     primepartner        cumulative
-    ##    <chr>         <chr>    <chr>                    <dbl>
-    ##  1 Jupiter       Callisto Triangulum Australe       4670
-    ##  2 Jupiter       Callisto Canes Venatici              60
-    ##  3 Jupiter       Europa   Triangulum Australe       6790
-    ##  4 Jupiter       Europa   Canes Venatici             520
-    ##  5 Jupiter       Ganymede Triangulum Australe       5210
-    ##  6 Jupiter       Ganymede Canes Venatici             150
-    ##  7 Jupiter       Himalia  Pegasus                   2160
-    ##  8 Jupiter       Himalia  Canes Venatici             240
-    ##  9 Jupiter       Himalia  Delphinus                  110
-    ## 10 Neptune       Naiad    Boötes                    5380
-    ## 11 Neptune       Naiad    Sagittarius               1930
-    ## 12 Neptune       Naiad    Dedup                     -100
-    ## 13 Neptune       Nereid   Libra                    24540
-    ## 14 Neptune       Nereid   Auriga                    7850
-    ## 15 Neptune       Nereid   Sagittarius               3080
-    ## 16 Neptune       Nereid   Leo                       1140
-    ## 17 Neptune       Nereid   Dedup                    -2600
-    ## 18 Saturn        Dione    Ursa Major                5050
-    ## 19 Saturn        Dione    Auriga                     840
-    ## 20 Saturn        Dione    Ophiuchus                  810
-    ## 21 Saturn        Dione    Virgo                       30
-    ## 22 Saturn        Dione    Canes Venatici              10
-    ## 23 Saturn        Mimas    Cepheus                   4080
-    ## 24 Saturn        Mimas    Boötes                    3500
-    ## 25 Saturn        Mimas    Ophiuchus                 1410
-    ## 26 Saturn        Mimas    Triangulum Australe        720
-    ## 27 Saturn        Mimas    Eridanus                   610
-    ## 28 Saturn        Mimas    Cetus                      480
-    ## 29 Saturn        Mimas    Draco                      470
-    ## 30 Saturn        Mimas    Aquila                     270
-    ## 31 Saturn        Mimas    Virgo                      170
-    ## 32 Saturn        Mimas    Canes Venatici              80
-    ## 33 Saturn        Mimas    Corvus                      50
-    ## 34 Saturn        Thea     Leo                       2940
-    ## 35 Saturn        Thea     Auriga                     940
-    ## 36 Saturn        Thea     Ophiuchus                  770
-    ## 37 Saturn        Thea     Cygnus                     590
-    ## 38 Saturn        Thea     Virgo                      500
-    ## 39 Saturn        Thea     Orion                      300
-    ## 40 Saturn        Thea     Gemini                     140
-    ## 41 Saturn        Thea     Canes Venatici             100
-    ## 42 Saturn        Thea     Aquila                      40
+    ## # A tibble: 27 x 3
+    ##    operatingunit primepartner        cumulative
+    ##    <chr>         <chr>                    <dbl>
+    ##  1 Jupiter       Canes Venatici             970
+    ##  2 Jupiter       Delphinus                  110
+    ##  3 Jupiter       Pegasus                   2160
+    ##  4 Jupiter       Triangulum Australe      16670
+    ##  5 Neptune       Auriga                    7850
+    ##  6 Neptune       Boötes                    5380
+    ##  7 Neptune       Dedup                    -2700
+    ##  8 Neptune       Leo                       1140
+    ##  9 Neptune       Libra                    24540
+    ## 10 Neptune       Sagittarius               5010
+    ## # ... with 17 more rows
 
-group\_by\_
+When grouping, there are some extra functions to make out lives easier, The `group_by_at()` function allows us to specify variable in a list and then pass those into the code via `group_by_at()`.
 
 ``` r
-key_ind <- c("operatingunit", "psnu", "primepartner")
-
+key_ind <- c("operatingunit", "primepartner")
 
 df %>% 
   filter(fiscal_year == 2019,
@@ -258,55 +297,42 @@ df %>%
   group_by_at(key_ind) %>% 
   summarise(cumulative = sum(cumulative, na.rm = TRUE)) %>% 
   ungroup() %>% 
-  arrange(operatingunit, psnu, desc(cumulative)) %>% 
+  arrange(operatingunit, primepartner, desc(cumulative)) %>% 
   print(n = Inf)
 ```
 
-    ## # A tibble: 42 x 4
-    ##    operatingunit psnu     primepartner        cumulative
-    ##    <chr>         <chr>    <chr>                    <dbl>
-    ##  1 Jupiter       Callisto Triangulum Australe       4670
-    ##  2 Jupiter       Callisto Canes Venatici              60
-    ##  3 Jupiter       Europa   Triangulum Australe       6790
-    ##  4 Jupiter       Europa   Canes Venatici             520
-    ##  5 Jupiter       Ganymede Triangulum Australe       5210
-    ##  6 Jupiter       Ganymede Canes Venatici             150
-    ##  7 Jupiter       Himalia  Pegasus                   2160
-    ##  8 Jupiter       Himalia  Canes Venatici             240
-    ##  9 Jupiter       Himalia  Delphinus                  110
-    ## 10 Neptune       Naiad    Boötes                    5380
-    ## 11 Neptune       Naiad    Sagittarius               1930
-    ## 12 Neptune       Naiad    Dedup                     -100
-    ## 13 Neptune       Nereid   Libra                    24540
-    ## 14 Neptune       Nereid   Auriga                    7850
-    ## 15 Neptune       Nereid   Sagittarius               3080
-    ## 16 Neptune       Nereid   Leo                       1140
-    ## 17 Neptune       Nereid   Dedup                    -2600
-    ## 18 Saturn        Dione    Ursa Major                5050
-    ## 19 Saturn        Dione    Auriga                     840
-    ## 20 Saturn        Dione    Ophiuchus                  810
-    ## 21 Saturn        Dione    Virgo                       30
-    ## 22 Saturn        Dione    Canes Venatici              10
-    ## 23 Saturn        Mimas    Cepheus                   4080
-    ## 24 Saturn        Mimas    Boötes                    3500
-    ## 25 Saturn        Mimas    Ophiuchus                 1410
-    ## 26 Saturn        Mimas    Triangulum Australe        720
-    ## 27 Saturn        Mimas    Eridanus                   610
-    ## 28 Saturn        Mimas    Cetus                      480
-    ## 29 Saturn        Mimas    Draco                      470
-    ## 30 Saturn        Mimas    Aquila                     270
-    ## 31 Saturn        Mimas    Virgo                      170
-    ## 32 Saturn        Mimas    Canes Venatici              80
-    ## 33 Saturn        Mimas    Corvus                      50
-    ## 34 Saturn        Thea     Leo                       2940
-    ## 35 Saturn        Thea     Auriga                     940
-    ## 36 Saturn        Thea     Ophiuchus                  770
-    ## 37 Saturn        Thea     Cygnus                     590
-    ## 38 Saturn        Thea     Virgo                      500
-    ## 39 Saturn        Thea     Orion                      300
-    ## 40 Saturn        Thea     Gemini                     140
-    ## 41 Saturn        Thea     Canes Venatici             100
-    ## 42 Saturn        Thea     Aquila                      40
+    ## # A tibble: 27 x 3
+    ##    operatingunit primepartner        cumulative
+    ##    <chr>         <chr>                    <dbl>
+    ##  1 Jupiter       Canes Venatici             970
+    ##  2 Jupiter       Delphinus                  110
+    ##  3 Jupiter       Pegasus                   2160
+    ##  4 Jupiter       Triangulum Australe      16670
+    ##  5 Neptune       Auriga                    7850
+    ##  6 Neptune       Boötes                    5380
+    ##  7 Neptune       Dedup                    -2700
+    ##  8 Neptune       Leo                       1140
+    ##  9 Neptune       Libra                    24540
+    ## 10 Neptune       Sagittarius               5010
+    ## 11 Saturn        Aquila                     310
+    ## 12 Saturn        Auriga                    1780
+    ## 13 Saturn        Boötes                    3500
+    ## 14 Saturn        Canes Venatici             190
+    ## 15 Saturn        Cepheus                   4080
+    ## 16 Saturn        Cetus                      480
+    ## 17 Saturn        Corvus                      50
+    ## 18 Saturn        Cygnus                     590
+    ## 19 Saturn        Draco                      470
+    ## 20 Saturn        Eridanus                   610
+    ## 21 Saturn        Gemini                     140
+    ## 22 Saturn        Leo                       2940
+    ## 23 Saturn        Ophiuchus                 2990
+    ## 24 Saturn        Orion                      300
+    ## 25 Saturn        Triangulum Australe        720
+    ## 26 Saturn        Ursa Major                5050
+    ## 27 Saturn        Virgo                      700
+
+We can also use `group_by_if()` to group by characteristics, eg character, numeric, double, etc.
 
 ``` r
 df %>% 
@@ -345,7 +371,7 @@ df %>%
     ## #   otherdisaggregate <chr>, coarsedisaggregate <chr>, modality <chr>,
     ## #   cumulative <dbl>
 
-summarize\_
+The `summarize()` function also has these extensions, `summarize_at()` and `summarize_if()`. With `summarize_at()` you will need to specify which variable(s) you want to aggregate in`vars()`. This extenstion allows you to summarize multiple variable here.
 
 ``` r
 df %>% 
@@ -353,25 +379,27 @@ df %>%
          indicator == "TX_NEW",
          standardizeddisaggregate == "Total Numerator"
          ) %>% 
-  group_by_at(key_ind) %>% 
-  summarise_at(vars(cumulative), sum, na.rm = TRUE) %>% 
+  group_by(operatingunit, primepartner) %>% 
+  summarise_at(vars(targets, cumulative), sum, na.rm = TRUE) %>% 
   ungroup()
 ```
 
-    ## # A tibble: 42 x 4
-    ##    operatingunit psnu     primepartner        cumulative
-    ##    <chr>         <chr>    <chr>                    <dbl>
-    ##  1 Jupiter       Callisto Canes Venatici              60
-    ##  2 Jupiter       Callisto Triangulum Australe       4670
-    ##  3 Jupiter       Europa   Canes Venatici             520
-    ##  4 Jupiter       Europa   Triangulum Australe       6790
-    ##  5 Jupiter       Ganymede Canes Venatici             150
-    ##  6 Jupiter       Ganymede Triangulum Australe       5210
-    ##  7 Jupiter       Himalia  Canes Venatici             240
-    ##  8 Jupiter       Himalia  Delphinus                  110
-    ##  9 Jupiter       Himalia  Pegasus                   2160
-    ## 10 Neptune       Naiad    Boötes                    5380
-    ## # ... with 32 more rows
+    ## # A tibble: 27 x 4
+    ##    operatingunit primepartner        targets cumulative
+    ##    <chr>         <chr>                 <dbl>      <dbl>
+    ##  1 Jupiter       Canes Venatici          350        970
+    ##  2 Jupiter       Delphinus                80        110
+    ##  3 Jupiter       Pegasus                1490       2160
+    ##  4 Jupiter       Triangulum Australe    5700      16670
+    ##  5 Neptune       Auriga                  620       7850
+    ##  6 Neptune       Boötes                  840       5380
+    ##  7 Neptune       Dedup                     0      -2700
+    ##  8 Neptune       Leo                     550       1140
+    ##  9 Neptune       Libra                  5210      24540
+    ## 10 Neptune       Sagittarius            1500       5010
+    ## # ... with 17 more rows
+
+The `summarize_if()` function allows you to group by characteristics, eg character, numeric, double, etc, just like `group_by_if()`. This ability allows you to specify and summarize all our columns that are double, eg `targets, qtr1, qtr2, qtr3, qtr4, cumulative`
 
 ``` r
 df %>% 
@@ -379,37 +407,43 @@ df %>%
          indicator == "TX_NEW",
          standardizeddisaggregate == "Total Numerator"
          ) %>% 
-  group_by_at(key_ind) %>% 
+  group_by(operatingunit, primepartner) %>% 
   summarise_if(is.double, sum, na.rm = TRUE) %>% 
   ungroup()
 ```
 
-    ## # A tibble: 42 x 9
-    ##    operatingunit psnu  primepartner targets  qtr1  qtr2  qtr3  qtr4
-    ##    <chr>         <chr> <chr>          <dbl> <dbl> <dbl> <dbl> <dbl>
-    ##  1 Jupiter       Call~ Canes Venat~      20    20    30    10    10
-    ##  2 Jupiter       Call~ Triangulum ~    1560  1070  1070   980  1580
-    ##  3 Jupiter       Euro~ Canes Venat~     160   120   130   140   140
-    ##  4 Jupiter       Euro~ Triangulum ~    2110  1440  1570  1580  2200
-    ##  5 Jupiter       Gany~ Canes Venat~      40    50    40    40    40
-    ##  6 Jupiter       Gany~ Triangulum ~    2030  1210  1270  1210  1540
-    ##  7 Jupiter       Hima~ Canes Venat~     130    50    70    70    70
-    ##  8 Jupiter       Hima~ Delphinus         80    10    30    30    50
-    ##  9 Jupiter       Hima~ Pegasus         1490   540   530   560   550
-    ## 10 Neptune       Naiad Boötes           840  1500  1500  1240  1150
-    ## # ... with 32 more rows, and 1 more variable: cumulative <dbl>
+    ## # A tibble: 27 x 8
+    ##    operatingunit primepartner    targets  qtr1  qtr2  qtr3  qtr4 cumulative
+    ##    <chr>         <chr>             <dbl> <dbl> <dbl> <dbl> <dbl>      <dbl>
+    ##  1 Jupiter       Canes Venatici      350   240   270   260   260        970
+    ##  2 Jupiter       Delphinus            80    10    30    30    50        110
+    ##  3 Jupiter       Pegasus            1490   540   530   560   550       2160
+    ##  4 Jupiter       Triangulum Aus~    5700  3720  3910  3770  5320      16670
+    ##  5 Neptune       Auriga              620  1470  1520  2040  2840       7850
+    ##  6 Neptune       Boötes              840  1500  1500  1240  1150       5380
+    ##  7 Neptune       Dedup                 0  -730  -770  -560  -630      -2700
+    ##  8 Neptune       Leo                 550   300   270   240   340       1140
+    ##  9 Neptune       Libra              5210  6830  6350  6070  5320      24540
+    ## 10 Neptune       Sagittarius        1500  1270  1340  1160  1260       5010
+    ## # ... with 17 more rows
 
-Positivity
+Let's move onto a more complete example. We're interested in comparing the positivity of across operating units last year. We need to start by filtering by year, indicator, and disaggregation. We need to group by operating unit and indicator (since we need both HTS\_TST and HTS\_TST\_POS to calculate positivity).
 
 ``` r
-df %>% 
+df_hts <- df %>% 
   filter(fiscal_year == 2019,
          indicator %in% c("HTS_TST", "HTS_TST_POS"),
          standardizeddisaggregate == "Total Numerator"
          ) %>% 
   group_by(operatingunit, indicator) %>% 
   summarise(cumulative = sum(cumulative, na.rm = TRUE)) %>% 
-  ungroup() %>% 
+  ungroup()
+```
+
+We are introducing a new function, `spread()` which allows us to reshape the dataset wide so we can then calculate (via `mutate()`) the positivity.
+
+``` r
+df_hts %>% 
   spread(indicator, cumulative) %>% 
   mutate(positivity = round(HTS_TST_POS/HTS_TST, 3))
 ```
@@ -421,18 +455,47 @@ df %>%
     ## 2 Neptune        719940       51950      0.072
     ## 3 Saturn        1532620       31360      0.02
 
-Share of Index
+We can use `group_by()` for more than aggregation. In the case below, we want to find what share of positive test were from index across partners. We will need to group by primepartner to determine what share is from index and not. Share of Index
+
+We start with out standard filtering, using the Modality/Age/Sex/Result disagg so we can identify index and non-index tests.
 
 ``` r
-df %>% 
+df_hts_pos <- df %>% 
   filter(fiscal_year == 2019,
          operatingunit == "Jupiter",
          indicator == "HTS_TST_POS",
-         standardizeddisaggregate == "Modality/Age/Sex/Result") %>% 
+         standardizeddisaggregate == "Modality/Age/Sex/Result")
+```
+
+Next we need to adjust the modalities, flagging anything that has Index (either Index or IndexMod) as Index and everything else as other before we aggregate the data.
+
+``` r
+(df_hts_pos <- df_hts_pos %>% 
   mutate(modality_type = ifelse(str_detect(modality, "Index"), "Index", "Other")) %>% 
   group_by(primepartner, indicator, modality_type) %>% 
   summarise(cumulative = sum(cumulative, na.rm = TRUE)) %>% 
-  ungroup() %>% 
+  ungroup()) 
+```
+
+    ## # A tibble: 11 x 4
+    ##    primepartner        indicator   modality_type cumulative
+    ##    <chr>               <chr>       <chr>              <dbl>
+    ##  1 Auriga              HTS_TST_POS Index                880
+    ##  2 Auriga              HTS_TST_POS Other               2220
+    ##  3 Canes Venatici      HTS_TST_POS Index                600
+    ##  4 Canes Venatici      HTS_TST_POS Other               1420
+    ##  5 Capricornus         HTS_TST_POS Other                740
+    ##  6 Delphinus           HTS_TST_POS Index                150
+    ##  7 Delphinus           HTS_TST_POS Other                310
+    ##  8 Pegasus             HTS_TST_POS Index                690
+    ##  9 Pegasus             HTS_TST_POS Other               3170
+    ## 10 Triangulum Australe HTS_TST_POS Index               6990
+    ## 11 Triangulum Australe HTS_TST_POS Other              12210
+
+Lastly, we need to group by `primepartner` to create shares so we can have the sum of the shares for each partner sum to 100%.
+
+``` r
+df_hts_pos %>% 
   group_by(primepartner) %>% 
   mutate(share_index = cumulative/sum(cumulative, na.rm = TRUE))
 ```

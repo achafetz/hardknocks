@@ -1,7 +1,7 @@
 ---
 title: "Summarizing Data in R"
 author: "Aaron Chafetz"
-date: "`r format(Sys.Date())`"
+date: "2019-12-12 [updated: `r format(Sys.Date())`]"
 output: rmarkdown::github_document
 ---
 
@@ -9,14 +9,18 @@ output: rmarkdown::github_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-```{r}
+Start by loading the packages we need.
+
+```{r dependencies, echo=FALSE}
 
 library(tidyverse)
 library(ICPIutilities)
 
 ```
 
-```{r}
+Access the data
+
+```{r import}
 #run the below lines of code to save the masked MSD
 dataset_url <- "https://media.githubusercontent.com/media/ICPI/TrainingDataset/master/Output/MER_Structured_TRAINING_Datasets_PSNU_IM_FY17-20_20191115_v1_1.txt"
 filename <- basename(dataset_url) 
@@ -25,30 +29,85 @@ df <- read_msd(dataset_url, save_rds = FALSE)
 
 ```
 
-```{r}
+To look at the data, we can use `View(df)` but `glimpse()` provides a better over view of the dataset.
+```{r view}
 
 glimpse(df)
-View(df)
-
 
 ```
 
+We're interested in looking at Jupiter's TX_NEW in 2019.
 
-```{r}
+In Excel, if we filtered the data table (named df), we would get 18 rows that look like this
+
+![image](https://user-images.githubusercontent.com/8933069/70719468-0ddb5d00-1cc0-11ea-86cf-d1e73b230be8.png).
+
+We can do the same thing in R.
+
+```{r filter}
 df %>% 
   filter(fiscal_year == 2019,
          operatingunit == "Jupiter",
          indicator == "TX_NEW",
          standardizeddisaggregate == "Total Numerator")
+```
 
+Filtering gets us part of the way there but we need to summarize or aggregate the filtered rows to get a total.
+
+In Excel, we could write a formula like this:
+
+`=SUMIFS(df[cumulative],df[fiscal_year],2019,df[operatingunit],"Jupiter",df[indicator],"TX_NEW",df[standardizeddisaggregate],"Total Numerator")`
+
+We are telling excel to sum the cumulative column based after it has filtered on year, indicator, etc.
+
+This is extremely similar in R. We can use `count()` with the `wt` argument, specifying that we don't just want a count of rows, but instead want to sum up the `cumulative` column.
+
+```{r}
 df %>% 
   filter(fiscal_year == 2019,
          operatingunit == "Jupiter",
          indicator == "TX_NEW",
-         #standardizeddisaggregate == "Total Numerator"
-         ) %>% 
-  count(standardizeddisaggregate, trendscoarse, wt = cumulative)
+         standardizeddisaggregate == "Total Numerator") %>% 
+  count(wt = cumulative)
+```
 
+If we were interested in comparing operating units, we could take `operatingunit` of the filter and include it in `count()` as a sort of grouping variable.  
+
+```{r}
+df %>% 
+  filter(fiscal_year == 2019,
+         indicator == "TX_NEW",
+         standardizeddisaggregate == "Total Numerator") %>% 
+  count(operatingunit, wt = cumulative)
+```
+
+Starting to think about grouping variable is similar to pivot tables in Excel. The filters are the same as above and then `operatingunit`, our grouping variable is under "Row Labels". 
+
+![image](https://user-images.githubusercontent.com/8933069/70720555-0026d700-1cc2-11ea-935b-7ca5a71c49d7.png)
+
+You can group by multiple variables with `count()`. We can add, as an example, in `psnu` as well.
+
+```{r}
+df %>% 
+  filter(fiscal_year == 2019,
+         indicator == "TX_NEW",
+         standardizeddisaggregate == "Total Numerator") %>% 
+  count(operatingunit, psnu, wt = cumulative)
+```
+
+I find this a good way to look at what disaggregates exist for a variable and do a quick completeness check.
+
+```{r}
+df %>% 
+  filter(fiscal_year == 2019,
+         operatingunit == "Jupiter",
+         indicator == "TX_NEW") %>% 
+  count(standardizeddisaggregate, sex, trendscoarse, wt = cumulative)
+```
+
+Alternatively, instead of using `count()` we can use the more robust function, `summarize()` which will allow us to aggregate or weight multiple variables at a time or to create other statistics beyond sum, eg calculating a mean or standard deviation.
+
+```{r}
 df %>% 
   filter(fiscal_year == 2019,
          operatingunit == "Jupiter",
@@ -56,26 +115,27 @@ df %>%
          standardizeddisaggregate == "Total Numerator"
          ) %>% 
   summarise(cumulative = sum(cumulative, na.rm = TRUE))
+```
 
+To add our grouping variable in, we have to add an additional line to identify them and then one more after our summarize function to remove the grouping (so we don't perform any more actions on the dataset when its grouped). I've also added in an extra line at the bottom to sort partners in each operating unit from high to low cumulative value using `arrange()`.
+
+```{r}
 df %>% 
   filter(fiscal_year == 2019,
          indicator == "TX_NEW",
          standardizeddisaggregate == "Total Numerator"
          ) %>% 
-  group_by(operatingunit, psnu, primepartner) %>% 
+  group_by(operatingunit, primepartner) %>% 
   summarise(cumulative = sum(cumulative, na.rm = TRUE)) %>% 
   ungroup() %>% 
-  arrange(operatingunit, psnu, desc(cumulative)) %>% 
-  print(n = Inf)
-
+  arrange(operatingunit, primepartner, desc(cumulative))
 ```
 
-group_by_
+When grouping, there are some extra functions to make out lives easier, The `group_by_at()` function allows us to specify variable in a list and then pass those into the code via `group_by_at()`.
 
 ```{r}
 
-key_ind <- c("operatingunit", "psnu", "primepartner")
-
+key_ind <- c("operatingunit", "primepartner")
 
 df %>% 
   filter(fiscal_year == 2019,
@@ -85,10 +145,13 @@ df %>%
   group_by_at(key_ind) %>% 
   summarise(cumulative = sum(cumulative, na.rm = TRUE)) %>% 
   ungroup() %>% 
-  arrange(operatingunit, psnu, desc(cumulative)) %>% 
+  arrange(operatingunit, primepartner, desc(cumulative)) %>% 
   print(n = Inf)
+```
 
+We can also use `group_by_if()` to group by characteristics, eg character, numeric, double, etc. 
 
+```{r, render= FALSE}
 df %>% 
   filter(fiscal_year == 2019,
          indicator == "TX_NEW",
@@ -97,61 +160,75 @@ df %>%
   group_by_if(is.character) %>% 
   summarise(cumulative = sum(cumulative, na.rm = TRUE)) %>% 
   ungroup()
-
 ```
 
-summarize_
+The `summarize()` function also has these extensions, `summarize_at()` and `summarize_if()`. With `summarize_at()` you will need to specify which variable(s) you want to aggregate in`vars()`. This extenstion allows you to summarize multiple variable here.
 
 ```{r}
-
 df %>% 
   filter(fiscal_year == 2019,
          indicator == "TX_NEW",
          standardizeddisaggregate == "Total Numerator"
          ) %>% 
-  group_by_at(key_ind) %>% 
-  summarise_at(vars(cumulative), sum, na.rm = TRUE) %>% 
+  group_by(operatingunit, primepartner) %>% 
+  summarise_at(vars(targets, cumulative), sum, na.rm = TRUE) %>% 
   ungroup()
+```
 
+The `summarize_if()` function allows you to group by characteristics, eg character, numeric, double, etc, just like `group_by_if()`. This ability allows you to specify and summarize all our columns that are double, eg `targets, qtr1, qtr2, qtr3, qtr4, cumulative`
 
+```{r}
 df %>% 
   filter(fiscal_year == 2019,
          indicator == "TX_NEW",
          standardizeddisaggregate == "Total Numerator"
          ) %>% 
-  group_by_at(key_ind) %>% 
+  group_by(operatingunit, primepartner) %>% 
   summarise_if(is.double, sum, na.rm = TRUE) %>% 
   ungroup()
-
 ```
 
-Positivity
+Let's move onto a more complete example. We're interested in comparing the positivity of across operating units last year.  We need to start by filtering by year, indicator, and disaggregation. We need to group by operating unit and indicator (since we need both HTS_TST and HTS_TST_POS to calculate positivity). 
 
 ```{r}
-df %>% 
+df_hts <- df %>% 
   filter(fiscal_year == 2019,
          indicator %in% c("HTS_TST", "HTS_TST_POS"),
          standardizeddisaggregate == "Total Numerator"
          ) %>% 
   group_by(operatingunit, indicator) %>% 
   summarise(cumulative = sum(cumulative, na.rm = TRUE)) %>% 
-  ungroup() %>% 
+  ungroup()
+```
+We are introducing a new function, `spread()` which allows us to reshape the dataset wide so we can then calculate (via `mutate()`) the positivity.
+```{r}
+df_hts %>% 
   spread(indicator, cumulative) %>% 
   mutate(positivity = round(HTS_TST_POS/HTS_TST, 3))
 ```
 
+We can use `group_by()` for more than aggregation. In the case below, we want to find what share of positive test were from index across partners. We will need to group by primepartner to determine what share is from index and not.
 Share of Index
-```{r}
 
-df %>% 
+We start with out standard filtering, using the Modality/Age/Sex/Result disagg so we can identify index and non-index tests.
+```{r}
+df_hts_pos <- df %>% 
   filter(fiscal_year == 2019,
          operatingunit == "Jupiter",
          indicator == "HTS_TST_POS",
-         standardizeddisaggregate == "Modality/Age/Sex/Result") %>% 
+         standardizeddisaggregate == "Modality/Age/Sex/Result")
+```
+Next we need to adjust the modalities, flagging anything that has Index (either Index or IndexMod) as Index and everything else as other before we aggregate the data.
+```{r}
+(df_hts_pos <- df_hts_pos %>% 
   mutate(modality_type = ifelse(str_detect(modality, "Index"), "Index", "Other")) %>% 
   group_by(primepartner, indicator, modality_type) %>% 
   summarise(cumulative = sum(cumulative, na.rm = TRUE)) %>% 
-  ungroup() %>% 
+  ungroup()) 
+```
+Lastly, we need to group by `primepartner` to create shares so we can have the sum of the shares for each partner sum to 100%.
+```{r}
+df_hts_pos %>% 
   group_by(primepartner) %>% 
   mutate(share_index = cumulative/sum(cumulative, na.rm = TRUE))
 ```
