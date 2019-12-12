@@ -1,0 +1,160 @@
+---
+title: "Summarizing Data in R"
+author: "Aaron Chafetz"
+date: "`r format(Sys.Date())`"
+output:
+  html_document:
+    keep_md: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+
+library(tidyverse)
+library(ICPIutilities)
+
+```
+
+```{r}
+#run the below lines of code to save the masked MSD
+dataset_url <- "https://media.githubusercontent.com/media/ICPI/TrainingDataset/master/Output/MER_Structured_TRAINING_Datasets_PSNU_IM_FY17-20_20191115_v1_1.txt"
+filename <- basename(dataset_url) 
+
+df <- read_msd(dataset_url, save_rds = FALSE)
+
+```
+
+```{r}
+
+glimpse(df)
+View(df)
+
+
+```
+
+
+```{r}
+df %>% 
+  filter(fiscal_year == 2019,
+         operatingunit == "Jupiter",
+         indicator == "TX_NEW",
+         standardizeddisaggregate == "Total Numerator")
+
+df %>% 
+  filter(fiscal_year == 2019,
+         operatingunit == "Jupiter",
+         indicator == "TX_NEW",
+         #standardizeddisaggregate == "Total Numerator"
+         ) %>% 
+  count(standardizeddisaggregate, trendscoarse, wt = cumulative)
+
+df %>% 
+  filter(fiscal_year == 2019,
+         operatingunit == "Jupiter",
+         indicator == "TX_NEW",
+         standardizeddisaggregate == "Total Numerator"
+         ) %>% 
+  summarise(cumulative = sum(cumulative, na.rm = TRUE))
+
+df %>% 
+  filter(fiscal_year == 2019,
+         indicator == "TX_NEW",
+         standardizeddisaggregate == "Total Numerator"
+         ) %>% 
+  group_by(operatingunit, psnu, primepartner) %>% 
+  summarise(cumulative = sum(cumulative, na.rm = TRUE)) %>% 
+  ungroup() %>% 
+  arrange(operatingunit, psnu, desc(cumulative)) %>% 
+  print(n = Inf)
+
+```
+
+group_by_
+
+```{r}
+
+key_ind <- c("operatingunit", "psnu", "primepartner")
+
+
+df %>% 
+  filter(fiscal_year == 2019,
+         indicator == "TX_NEW",
+         standardizeddisaggregate == "Total Numerator"
+         ) %>% 
+  group_by_at(key_ind) %>% 
+  summarise(cumulative = sum(cumulative, na.rm = TRUE)) %>% 
+  ungroup() %>% 
+  arrange(operatingunit, psnu, desc(cumulative)) %>% 
+  print(n = Inf)
+
+
+df %>% 
+  filter(fiscal_year == 2019,
+         indicator == "TX_NEW",
+         standardizeddisaggregate == "Total Numerator"
+         ) %>% 
+  group_by_if(is.character) %>% 
+  summarise(cumulative = sum(cumulative, na.rm = TRUE)) %>% 
+  ungroup()
+
+```
+
+summarize_
+
+```{r}
+
+df %>% 
+  filter(fiscal_year == 2019,
+         indicator == "TX_NEW",
+         standardizeddisaggregate == "Total Numerator"
+         ) %>% 
+  group_by_at(key_ind) %>% 
+  summarise_at(vars(cumulative), sum, na.rm = TRUE) %>% 
+  ungroup()
+
+
+df %>% 
+  filter(fiscal_year == 2019,
+         indicator == "TX_NEW",
+         standardizeddisaggregate == "Total Numerator"
+         ) %>% 
+  group_by_at(key_ind) %>% 
+  summarise_if(is.double, sum, na.rm = TRUE) %>% 
+  ungroup()
+
+```
+
+Positivity
+
+```{r}
+df %>% 
+  filter(fiscal_year == 2019,
+         indicator %in% c("HTS_TST", "HTS_TST_POS"),
+         standardizeddisaggregate == "Total Numerator"
+         ) %>% 
+  group_by(operatingunit, indicator) %>% 
+  summarise(cumulative = sum(cumulative, na.rm = TRUE)) %>% 
+  ungroup() %>% 
+  spread(indicator, cumulative) %>% 
+  mutate(positivity = round(HTS_TST_POS/HTS_TST, 3))
+```
+
+Share of Index
+```{r}
+
+df %>% 
+  filter(fiscal_year == 2019,
+         operatingunit == "Jupiter",
+         indicator == "HTS_TST_POS",
+         standardizeddisaggregate == "Modality/Age/Sex/Result") %>% 
+  mutate(modality_type = ifelse(str_detect(modality, "Index"), "Index", "Other")) %>% 
+  group_by(primepartner, indicator, modality_type) %>% 
+  summarise(cumulative = sum(cumulative, na.rm = TRUE)) %>% 
+  ungroup() %>% 
+  group_by(primepartner) %>% 
+  mutate(share_index = cumulative/sum(cumulative, na.rm = TRUE))
+```
+
