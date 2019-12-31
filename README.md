@@ -1,6 +1,3 @@
-# hardknocks
-USAID OHA/SI R School
-
 ### Getting Started
 
 Install/update the following packages that we'll be using:
